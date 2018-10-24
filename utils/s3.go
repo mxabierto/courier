@@ -1,9 +1,9 @@
 package utils
 
 import (
-	"bytes"
-	"fmt"
-
+	"strings"
+	"os"
+     "io/ioutil"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
@@ -26,18 +26,10 @@ func TestS3(s3Client s3iface.S3API, bucket string) error {
 
 // PutS3File writes the passed in file to the bucket with the passed in content type
 func PutS3File(s3Client s3iface.S3API, bucket string, path string, contentType string, contents []byte) (string, error) {
-	params := &s3.PutObjectInput{
-		Bucket:      aws.String(bucket),
-		Body:        bytes.NewReader(contents),
-		Key:         aws.String(path),
-		ContentType: aws.String(contentType),
-		ACL:         aws.String(s3.BucketCannedACLPublicRead),
-	}
-	_, err := s3Client.PutObject(params)
-	if err != nil {
-		return "", err
-	}
-
-	url := fmt.Sprintf(s3BucketURL, bucket, path)
+	result := strings.Split(path, "/");
+  folder := strings.Join(result[:len(result)-1],"/");
+  os.MkdirAll(folder, os.ModePerm);
+	ioutil.WriteFile(path, contents, 0644);
+	url := "https://rapidpro.datos.gob.mx"+ path;
 	return url, nil
 }
