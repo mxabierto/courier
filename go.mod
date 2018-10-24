@@ -2,8 +2,6 @@ module github.com/nyaruka/courier
 
 require (
 	github.com/BurntSushi/toml v0.3.0
-	github.com/antchfx/xmlquery v0.0.0-20181024140136-98cdbc3221ed
-	github.com/antchfx/xpath v0.0.0-20180922041825-3de91f3991a1 // indirect
 	github.com/aws/aws-sdk-go v1.13.3
 	github.com/buger/jsonparser v0.0.0-20180318095312-2cac668e8456
 	github.com/certifi/gocertifi v0.0.0-20180118203423-deb3ae2ef261 // indirect
@@ -35,7 +33,6 @@ require (
 	golang.org/x/crypto v0.0.0-20180222182404-49796115aa4b
 	golang.org/x/net v0.0.0-20180719180050-a680a1efc54d // indirect
 	golang.org/x/sys v0.0.0-20180222210305-c1138c84af3a
-	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.11.0
 	gopkg.in/guregu/null.v3 v3.3.0
 	gopkg.in/h2non/filetype.v1 v1.0.5

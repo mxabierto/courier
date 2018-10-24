@@ -17,7 +17,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
-	"github.com/garyburd/redigo/redis"
 	"github.com/nyaruka/courier"
 	"github.com/nyaruka/courier/queue"
 	"github.com/nyaruka/gocommon/urns"
@@ -463,49 +462,6 @@ func (ts *BackendTestSuite) TestHealth() {
 	ts.Equal(ts.b.Health(), "")
 }
 
-func (ts *BackendTestSuite) TestDupes() {
-	ctx := context.Background()
-	knChannel := ts.getChannel("KN", "dbc126ed-66bc-4e28-b67b-81dc3327c95d")
-	urn, _ := urns.NewTelURNForCountry("12065551215", knChannel.Country())
-
-	msg := ts.b.NewIncomingMsg(knChannel, urn, "ping").(*DBMsg)
-	err := ts.b.WriteMsg(ctx, msg)
-	ts.NoError(err)
-
-	// grab our UUID
-	uuid1 := msg.UUID().String()
-
-	// trying again should lead to same UUID
-	msg = ts.b.NewIncomingMsg(knChannel, urn, "ping").(*DBMsg)
-	err = ts.b.WriteMsg(ctx, msg)
-	ts.NoError(err)
-
-	ts.Equal(uuid1, msg.UUID().String())
-
-	// different message should change that
-	msg = ts.b.NewIncomingMsg(knChannel, urn, "test").(*DBMsg)
-	err = ts.b.WriteMsg(ctx, msg)
-	ts.NoError(err)
-
-	ts.NotEqual(uuid1, msg.UUID().String())
-	uuid2 := msg.UUID().String()
-
-	// an outgoing message should clear things
-	dbMsg, err := readMsgFromDB(ts.b, courier.NewMsgID(10000))
-	dbMsg.URN_ = urn
-	dbMsg.channel = knChannel
-	dbMsg.ChannelUUID_ = knChannel.UUID()
-	dbMsg.Text_ = "test"
-	status := ts.b.NewMsgStatusForID(dbMsg.Channel(), dbMsg.ID(), courier.MsgWired)
-	ts.b.MarkOutgoingMsgComplete(ctx, dbMsg, status)
-
-	msg = ts.b.NewIncomingMsg(knChannel, urn, "test").(*DBMsg)
-	err = ts.b.WriteMsg(ctx, msg)
-	ts.NoError(err)
-
-	ts.NotEqual(uuid2, msg.UUID().String())
-}
-
 func (ts *BackendTestSuite) TestStatus() {
 	// our health should just contain the header
 	ts.True(strings.Contains(ts.b.Status(), "Channel"), ts.b.Status())
@@ -798,29 +754,6 @@ func (ts *BackendTestSuite) TestWriteMsg() {
 	msg = ts.b.NewIncomingMsg(knChannel, urn, text).(*DBMsg)
 	err = writeMsgToDB(ctx, ts.b, msg)
 	ts.NoError(err)
-
-	// check that our mailroom queue has an item
-	rc := ts.b.redisPool.Get()
-	defer rc.Close()
-	rc.Do("DEL", "handler:1", "handler:active", fmt.Sprintf("c:1:%d", msg.ContactID_.Int64))
-
-	// test queuing to mailroom
-	knChannel.OrgFlowServerEnabled_ = true
-	msg = ts.b.NewIncomingMsg(knChannel, urn, "hello 1 2 3").(*DBMsg)
-	err = writeMsgToDB(ctx, ts.b, msg)
-	ts.NoError(err)
-
-	count, err := redis.Int(rc.Do("ZCARD", "handler:1"))
-	ts.NoError(err)
-	ts.Equal(1, count)
-
-	count, err = redis.Int(rc.Do("ZCARD", "handler:active"))
-	ts.NoError(err)
-	ts.Equal(1, count)
-
-	count, err = redis.Int(rc.Do("LLEN", fmt.Sprintf("c:1:%d", msg.ContactID_.Int64)))
-	ts.NoError(err)
-	ts.Equal(1, count)
 }
 
 func (ts *BackendTestSuite) TestChannelEvent() {
@@ -843,45 +776,6 @@ func (ts *BackendTestSuite) TestChannelEvent() {
 	ts.Equal(map[string]interface{}{"ref_id": "12345"}, dbE.Extra_.Map)
 	ts.Equal(contact.ID_, dbE.ContactID_)
 	ts.Equal(contact.URNID_, dbE.ContactURNID_)
-}
-
-func (ts *BackendTestSuite) TestMailroomEvents() {
-	ctx := context.Background()
-
-	rc := ts.b.redisPool.Get()
-	defer rc.Close()
-	rc.Do("DEL", "handler:1", "handler:active")
-
-	channel := ts.getChannel("KN", "dbc126ed-66bc-4e28-b67b-81dc3327c95d")
-	channel.OrgFlowServerEnabled_ = true
-	urn, _ := urns.NewTelURNForCountry("12065551616", channel.Country())
-	event := ts.b.NewChannelEvent(channel, courier.Referral, urn).WithExtra(map[string]interface{}{"ref_id": "12345"}).WithContactName("kermit frog")
-	err := ts.b.WriteChannelEvent(ctx, event)
-	ts.NoError(err)
-
-	contact, err := contactForURN(ctx, ts.b, channel.OrgID_, channel, urn, "", "")
-	ts.NoError(err)
-	ts.Equal("kermit frog", contact.Name_.String)
-
-	dbE := event.(*DBChannelEvent)
-	dbE, err = readChannelEventFromDB(ts.b, dbE.ID_)
-	ts.NoError(err)
-	ts.Equal(dbE.EventType_, courier.Referral)
-	ts.Equal(map[string]interface{}{"ref_id": "12345"}, dbE.Extra_.Map)
-	ts.Equal(contact.ID_, dbE.ContactID_)
-	ts.Equal(contact.URNID_, dbE.ContactURNID_)
-
-	count, err := redis.Int(rc.Do("ZCARD", "handler:1"))
-	ts.NoError(err)
-	ts.Equal(1, count)
-
-	count, err = redis.Int(rc.Do("ZCARD", "handler:active"))
-	ts.NoError(err)
-	ts.Equal(1, count)
-
-	count, err = redis.Int(rc.Do("LLEN", fmt.Sprintf("c:1:%d", contact.ID_.Int64)))
-	ts.NoError(err)
-	ts.Equal(1, count)
 }
 
 func TestMsgSuite(t *testing.T) {

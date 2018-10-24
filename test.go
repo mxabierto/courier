@@ -34,8 +34,9 @@ type MockBackend struct {
 	channelEvents   []ChannelEvent
 	lastContactName string
 
-	sentMsgs  map[MsgID]bool
-	redisPool *redis.Pool
+	stoppedMsgContacts []Msg
+	sentMsgs           map[MsgID]bool
+	redisPool          *redis.Pool
 }
 
 // NewMockBackend returns a new mock backend suitable for testing
@@ -142,6 +143,19 @@ func (mb *MockBackend) WasMsgSent(ctx context.Context, msg Msg) (bool, error) {
 	defer mb.mutex.Unlock()
 
 	return mb.sentMsgs[msg.ID()], nil
+}
+
+// StopMsgContact stops the contact for the passed in msg
+func (mb *MockBackend) StopMsgContact(ctx context.Context, msg Msg) {
+	mb.stoppedMsgContacts = append(mb.stoppedMsgContacts, msg)
+}
+
+// GetLastStoppedMsgContact returns the last msg contact
+func (mb *MockBackend) GetLastStoppedMsgContact() Msg {
+	if len(mb.stoppedMsgContacts) > 0 {
+		return mb.stoppedMsgContacts[len(mb.stoppedMsgContacts)-1]
+	}
+	return nil
 }
 
 // MarkOutgoingMsgComplete marks the passed msg as having been dealt with

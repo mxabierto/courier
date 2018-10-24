@@ -135,11 +135,13 @@ func newRRFromResponse(method string, requestTrace string, r *http.Response) (*R
 	}
 	rr.Response = string(response)
 
-	bodyBytes, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return &rr, err
+	if isText {
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return &rr, err
+		}
+		rr.Body = bodyBytes
 	}
-	rr.Body = bodyBytes
 
 	// return an error if we got a non-200 status
 	if err == nil && rr.Status != RRStatusSuccess {
