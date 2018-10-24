@@ -168,6 +168,10 @@ type moPayload struct {
 					Type    string `json:"type"`
 					Payload *struct {
 						URL string `json:"url"`
+						Coordinates *struct {
+							Lat float64 `json:"lat"`
+							Long float64 `json:"long"`
+						}
 					}
 				} `json:"attachments"`
 			} `json:"message"`
@@ -261,7 +265,7 @@ func (h *handler) receiveEvent(ctx context.Context, channel courier.Channel, w h
 		} else if msg.Postback != nil {
 			// by default postbacks are treated as new conversations, unless we have referral information
 			eventType := courier.NewConversation
-			if msg.Postback.Referral.Ref != "" {
+			if msg.Postback.Payload != "" {
 				eventType = courier.Referral
 			}
 			event := h.Backend().NewChannelEvent(channel, eventType, urn).WithOccurredOn(date)
@@ -274,7 +278,7 @@ func (h *handler) receiveEvent(ctx context.Context, channel courier.Channel, w h
 
 			// add in referral information if we have it
 			if eventType == courier.Referral {
-				extra[referrerIDKey] = msg.Postback.Referral.Ref
+				extra[referrerIDKey] = msg.Postback.Payload
 				extra[sourceKey] = msg.Postback.Referral.Source
 				extra[typeKey] = msg.Postback.Referral.Type
 			}
@@ -334,6 +338,10 @@ func (h *handler) receiveEvent(ctx context.Context, channel courier.Channel, w h
 			for _, att := range msg.Message.Attachments {
 				if att.Payload != nil && att.Payload.URL != "" {
 					event.WithAttachment(att.Payload.URL)
+				} else if att.Payload != nil && att.Type == "location" {
+					lat := fmt.Sprintf("%f",att.Payload.Coordinates.Lat)
+					long := fmt.Sprintf("%f",att.Payload.Coordinates.Long)
+					event = h.Backend().NewIncomingMsg(channel, urn, "("+lat+","+long+")").WithExternalID(msg.Message.MID).WithReceivedOn(date)
 				}
 			}
 
